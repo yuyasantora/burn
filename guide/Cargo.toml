@@ -1,0 +1,10 @@
+[package]
+name = "my-burn-guide"
+edition.workspace = true
+license.workspace = true
+readme.workspace = true
+version = "0.1.0"
+
+
+[dependencies]
+burn = {version = "~0.17", features = ["train", "wgpu", "vision"]}

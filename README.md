@@ -707,3 +707,4 @@ See [LICENSE-APACHE](./LICENSE-APACHE) and [LICENSE-MIT](./LICENSE-MIT) for deta
 request is assumed to signal agreement with these licensing terms.
 
 </div>
+"#burn" 

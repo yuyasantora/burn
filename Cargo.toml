@@ -10,7 +10,7 @@ members = [
     "crates/burn-import/onnx-tests",
     "examples/*",
     "examples/pytorch-import/model",
-    "xtask",
+    "xtask", "first_conv", "my_app", "guide", "my_detection",
 ]
 
 exclude = [

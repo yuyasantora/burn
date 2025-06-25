@@ -1,0 +1,9 @@
+[package]
+name = "first_conv"
+edition.workspace = true
+license.workspace = true
+readme.workspace = true
+version.workspace = true
+
+[dependencies]
+burn = { version = "0.17.0", path = "../crates/burn", features = ["wgpu"] }
