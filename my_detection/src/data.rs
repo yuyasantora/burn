@@ -44,7 +44,7 @@ pub struct CocoCategory {
 #[derive(Clone, Debug)]
 pub struct DetectionItem {
     pub image: Vec<f32>,
-    pub witdh: u32,
+    pub width: u32,
     pub height: u32,
     pub bboxes: Vec<BoundingBox>,
 }
@@ -102,7 +102,27 @@ impl CocoDetectionDataset {
         let image_path = self.image_dir.join(&image_info.file_name);
 
         // image crateを使って画像を読み込む
-        use image::{ImageReader, DynamicImage}
+        use image::{imageops::FilterType, ImageReader};
+
+        let img = ImageReader::open(image_path).ok()?.decode().ok()?;
+
+        let resized_img = img.resize_exact(
+            self.target_size.0,
+            self.target_size.1,
+            FilterType::Lanczos3,
+        );
+        let rgb_img = resized_img.to_rgb8();
+
+        let mut image_vec =
+            Vec::with_capacity((self.target_size.0 * self.target_size.1 * 3) as usize);
+        for pixel in rgb_img.pixels() {
+            image_vec.push(pixel[0] as f32 / 255.0); // R
+            image_vec.push(pixel[1] as f32 / 255.0); // G
+            image_vec.push(pixel[2] as f32 / 255.0); // B
+        }
+
+        Some(image_vec)
     }
+}
 
 
