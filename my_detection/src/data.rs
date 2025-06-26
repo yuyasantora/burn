@@ -125,4 +125,36 @@ impl CocoDetectionDataset {
     }
 }
 
+impl Dataset<DetectionItem> for CocoDetectionDataset {
+    fn get(&self, index: usize) -> Option<DetectionItem> {
+        let image_info = &self.images[index];
 
+        let image = self.load_image(image_info)?;
+
+        let bboxes = self.annotation_map
+            .get(&image_info.id)
+            .map(|anns| {
+                anns.iter()
+                    .map(|ann| BoundingBox {
+                        x: ann.bbox[0] / image_info.width as f32,
+                        y: ann.bbox[1] / image_info.height as f32,
+                        width: ann.bbox[2] / image_info.width as f32,
+                        height: ann.bbox[3] / image_info.height as f32,
+                        class_id: ann.category_id as usize,
+                    })
+                    .collect()
+            })
+            .unwrap_or_else(Vec::new);
+
+        Some(DetectionItem {
+            image,
+            width: self.target_size.0,
+            height: self.target_size.1,
+            bboxes,
+        })
+    }
+
+    fn len(&self) -> usize {
+        self.images.len()
+    }
+}
