@@ -3,7 +3,7 @@ mod model;
 
 use tempfile::Builder;
 use crate::data::CocoDetectionDataset;
-use crate::model::{BackboneConfig};
+use crate::model::{BackboneConfig, NeckConfig, FpnOutput};
 use burn::{
     backend::{wgpu::{Wgpu, WgpuDevice}, autodiff::Autodiff},
     tensor::Tensor,
@@ -68,26 +68,71 @@ use burn::{
 // モデルのバックボーンのテスト
 type MyBackend = Autodiff<Wgpu>;
 
-fn backbone_test() {
+// fn backbone_test() {
+//     let device = WgpuDevice::default();
+
+//     let config = BackboneConfig {
+//         channels: [32, 64, 128, 256],
+//         kernel_size: 3,
+//     };
+
+//     let backbone = config.init::<MyBackend>(&device);
+//     println!("モデルの初期化に成功しました。");
+//     println!("モデル構造: {:?}", backbone);
+
+//     let dummy_data: Tensor<MyBackend, 4> = Tensor::zeros([1, 3, 224, 224], &device);
+//     println!("\nダミー入力データの形状: {:?}", dummy_data.shape());
+
+//     let output = backbone.forward(dummy_data);
+//     println!("✅ 順伝播の実行に成功！");
+//     println!("出力テンソルの形状: {:?}", output.shape());
+// }
+
+
+fn backbone_add_neck_test() {
     let device = WgpuDevice::default();
 
-    let config = BackboneConfig {
-        channels: [32, 64, 128, 256],
+    // --- バックボーンの初期化 ---
+    // 3つの出力チャンネルを指定
+    let backbone_config = BackboneConfig {
+        channels: [64, 128, 256, 0], // 4番目は使わないので0
         kernel_size: 3,
     };
+    let backbone = backbone_config.init::<MyBackend>(&device);
+    println!("バックボーンの初期化に成功しました。");
+    
+    // --- Neckの初期化 ---
+    // Backboneの出力チャンネルをそのまま使う
+    let neck_config = NeckConfig {
+        out_channels: 128, 
+        in_channels: [64, 128, 256], 
+    };
+    let neck = neck_config.init::<MyBackend>(&device);
+    println!("Neckの初期化に成功しました。");
 
-    let backbone = config.init::<MyBackend>(&device);
-    println!("モデルの初期化に成功しました。");
-    println!("モデル構造: {:?}", backbone);
-
+    // --- ダミーデータの生成 ---
     let dummy_data: Tensor<MyBackend, 4> = Tensor::zeros([1, 3, 224, 224], &device);
     println!("\nダミー入力データの形状: {:?}", dummy_data.shape());
+    
+    // Backbone -> Neck の順で実行
+    let features = backbone.forward(dummy_data);
+    println!("\nBackboneからの特徴マップの数: {}", features.len());
+    for (i, f) in features.iter().enumerate() {
+        println!("  - 特徴マップ{}: {:?}", i, f.shape());
+    }
 
-    let output = backbone.forward(dummy_data);
-    println!("✅ 順伝播の実行に成功！");
-    println!("出力テンソルの形状: {:?}", output.shape());
+    // Backboneが3つの特徴マップを返すので、そのまま渡す
+    let fpn_outputs: FpnOutput<MyBackend> = neck.forward(features);
+    
+    // FpnOutput構造体の内容を個別に出力する
+    println!("\nNeckからのFPN出力:");
+    println!("  - P3 (浅い層): Shape {:?}", fpn_outputs.p3.shape());
+    println!("  - P4 (中間層): Shape {:?}", fpn_outputs.p4.shape());
+    println!("  - P5 (深い層): Shape {:?}", fpn_outputs.p5.shape());
+
+    println!("\n--- 正常に実行完了 ---");
 }
 
 fn main() {
-    backbone_test();
+    backbone_add_neck_test();
 }
