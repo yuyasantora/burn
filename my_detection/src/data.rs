@@ -1,5 +1,5 @@
 use burn::{
-    data::{dataloader::batcher::Batcher, dataset::Dataset}
+    data::{dataloader::batcher::Batcher, dataset::Dataset},
     prelude::*,
     tensor::{Tensor, TensorData}
 };
@@ -102,9 +102,9 @@ impl CocoDetectionDataset {
         let image_path = self.image_dir.join(&image_info.file_name);
 
         // image crateを使って画像を読み込む
-        use image::{imageops::FilterType, ImageReader};
+        use image::imageops::FilterType;
 
-        let img = ImageReader::open(image_path).ok()?.decode().ok()?;
+        let img = image::open(image_path).ok()?;
 
         let resized_img = img.resize_exact(
             self.target_size.0,
@@ -158,3 +158,5 @@ impl Dataset<DetectionItem> for CocoDetectionDataset {
         self.images.len()
     }
 }
+
+
