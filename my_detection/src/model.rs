@@ -161,37 +161,40 @@ pub struct FpnOutput<B: Backend> {
 impl<B: Backend> Neck<B> {
     pub fn forward(&self, features: Vec<Tensor<B, 4>>) -> FpnOutput<B> {
         // バックボーンからの特徴マップを分割 (c3, c4, c5)
-        // features[0]が最も浅く、[2]が最も深いと仮定
-        let c3 = &features[0]; // 浅い
+        // features[0]は112x112, [1]は56x56, [2]は28x28
+        let c3 = &features[0];
         let c4 = &features[1];
-        let c5 = &features[2]; // 深い
+        let c5 = &features[2];
 
         // --- トップダウン経路 (深い層から浅い層へ) ---
 
-        // 1. c5からP5を作成
-        let p5_latent = self.lateral_conv0.forward(c5.clone());
+        // 1. p5_td (top-down) を作成
+        let p5_td = self.lateral_conv0.forward(c5.clone());
 
-        // 2. P5をアップサンプルし、c4と結合してP4を作成
-        let [_b, _c, h4, w4] = c4.dims();
-        let p5_upsampled = interpolate(p5_latent.clone(), [h4, w4], InterpolateOptions::new(InterpolateMode::Nearest));
-        let p4_latent = self.upsample_conv0.forward(Tensor::cat(vec![p5_upsampled, c4.clone()], 1));
+        // 2. p4_td を作成
+        let p5_upsampled = interpolate(p5_td.clone(), c4.dims().slice(2..), InterpolateOptions::new(InterpolateMode::Nearest));
+        let p4_td = self.upsample_conv0.forward(Tensor::cat(vec![p5_upsampled, c4.clone()], 1));
         
-        // 3. P4をアップサンプルし、c3と結合してP3を作成
-        let [_b, _c, h3, w3] = c3.dims();
-        let p4_upsampled = interpolate(p4_latent.clone(), [h3, w3], InterpolateOptions::new(InterpolateMode::Nearest));
-        let p3_out = self.upsample_conv1.forward(Tensor::cat(vec![p4_upsampled, c3.clone()], 1));
+        // 3. p3_td を作成
+        let p4_upsampled = interpolate(p4_td.clone(), c3.dims().slice(2..), InterpolateOptions::new(InterpolateMode::Nearest));
+        let p3_td = self.upsample_conv1.forward(Tensor::cat(vec![p4_upsampled, c3.clone()], 1));
 
         // --- ボトムアップ経路 (浅い層から深い層へ) ---
 
-        // 4. P3からダウンサンプルし、P4と結合してN4を作成
-        let n4_latent = self.downsample_conv0.forward(p3_out.clone());
-        let p4_out = self.path_aug_conv0.forward(Tensor::cat(vec![n4_latent, p4_latent], 1));
-        
-        // 5. N4からダウンサンプルし、P5と結合してN5を作成
-        let n5_latent = self.downsample_conv1.forward(p4_out.clone());
-        let p5_out = self.path_aug_conv1.forward(Tensor::cat(vec![n5_latent, p5_latent], 1));
+        // 4. n3_out (bottom-up) を作成 (p3と同じ)
+        let n3_out = p3_td;
 
-        FpnOutput { p3: p3_out, p4: p4_out, p5: p5_out }
+        // 5. n4_out を作成
+        // n3_out(112x112)をダウンサンプルし、トップダウンで作ったp4_td(56x56)と結合
+        let n3_downsampled = self.downsample_conv0.forward(n3_out.clone());
+        let n4_out = self.path_aug_conv0.forward(Tensor::cat(vec![n3_downsampled, p4_td], 1));
+        
+        // 6. n5_out を作成
+        // n4_out(56x56)をダウンサンプルし、トップダウンで作ったp5_td(28x28)と結合
+        let n4_downsampled = self.downsample_conv1.forward(n4_out.clone());
+        let n5_out = self.path_aug_conv1.forward(Tensor::cat(vec![n4_downsampled, p5_td], 1));
+
+        FpnOutput { p3: n3_out, p4: n4_out, p5: n5_out }
     }
 }
 
