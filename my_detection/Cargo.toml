@@ -6,7 +6,7 @@ readme.workspace = true
 version.workspace = true
 
 [dependencies]
-burn = { path = "../crates/burn",features = ["dataset"]}
+burn = { path = "../crates/burn",features = ["train", "wgpu", "vision", "dataset"]}
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 image = "0.24"
