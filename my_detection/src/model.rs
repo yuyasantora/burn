@@ -130,9 +130,9 @@ impl NeckConfig {
 
         // --- トップダウン経路の層を初期化 ---
         let lateral_conv0 = Conv2dConfig::new([c[2], out], [1, 1]).init(device);
-        let upsample_conv0 = Conv2dConfig::new([out + c[1], out], [3, 3]).with_padding(burn::nn::PaddingConfig2d::Same).init(device);
+        let upsample_conv0 = Conv2dConfig::new([out + out, out], [3, 3]).with_padding(burn::nn::PaddingConfig2d::Same).init(device);
 
-        let lateral_conv1 = Conv2dConfig::new([out, out], [1, 1]).init(device);
+        let lateral_conv1 = Conv2dConfig::new([c[1], out], [1, 1]).init(device);
         let upsample_conv1 = Conv2dConfig::new([out + c[0], out], [3, 3]).with_padding(burn::nn::PaddingConfig2d::Same).init(device);
 
         // --- ボトムアップ経路の層を初期化 ---
@@ -172,25 +172,26 @@ impl<B: Backend> Neck<B> {
         let p5_td = self.lateral_conv0.forward(c5.clone());
 
         // 2. p4_td を作成
-        let p5_upsampled = interpolate(p5_td.clone(), c4.dims().slice(2..), InterpolateOptions::new(InterpolateMode::Nearest));
-        let p4_td = self.upsample_conv0.forward(Tensor::cat(vec![p5_upsampled, c4.clone()], 1));
+        let [_b, _c, h4, w4] = c4.dims(); // c4の高さと幅を取得
+        let p5_upsampled = interpolate(p5_td.clone(), [h4, w4], InterpolateOptions::new(InterpolateMode::Nearest));
+        let p4_lateral = self.lateral_conv1.forward(c4.clone()); // c4に対してもlateral convolutionを適用
+        let p4_td = self.upsample_conv0.forward(Tensor::cat(vec![p5_upsampled, p4_lateral], 1));
         
         // 3. p3_td を作成
-        let p4_upsampled = interpolate(p4_td.clone(), c3.dims().slice(2..), InterpolateOptions::new(InterpolateMode::Nearest));
+        let [_b, _c, h3, w3] = c3.dims(); // c3の高さと幅を取得
+        let p4_upsampled = interpolate(p4_td.clone(), [h3, w3], InterpolateOptions::new(InterpolateMode::Nearest));
         let p3_td = self.upsample_conv1.forward(Tensor::cat(vec![p4_upsampled, c3.clone()], 1));
 
         // --- ボトムアップ経路 (浅い層から深い層へ) ---
 
-        // 4. n3_out (bottom-up) を作成 (p3と同じ)
+        // 4. n3_out (bottom-up) を作成
         let n3_out = p3_td;
 
         // 5. n4_out を作成
-        // n3_out(112x112)をダウンサンプルし、トップダウンで作ったp4_td(56x56)と結合
         let n3_downsampled = self.downsample_conv0.forward(n3_out.clone());
         let n4_out = self.path_aug_conv0.forward(Tensor::cat(vec![n3_downsampled, p4_td], 1));
         
         // 6. n5_out を作成
-        // n4_out(56x56)をダウンサンプルし、トップダウンで作ったp5_td(28x28)と結合
         let n4_downsampled = self.downsample_conv1.forward(n4_out.clone());
         let n5_out = self.path_aug_conv1.forward(Tensor::cat(vec![n4_downsampled, p5_td], 1));
 
